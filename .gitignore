@@ -1,0 +1,28 @@
+# Binaries and object files
+*.o
+*.obj
+*.exe
+*.out
+*.app
+
+# Test executables in backend
+backend/test_waiting_queue
+backend/test_confirmed_list
+backend/test_seat_manager
+backend/test_booking
+backend/test_cancellation
+backend/test_all
+backend/*.exe
+
+# Debug symbols
+*.pdb
+*.ilk
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Runtime data
+data/*.csv
+!data/.gitkeep
+!data/README.md
