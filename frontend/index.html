@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Railway Reservation</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --ink: #17233b;
+    --ink-soft: #5b6578;
+    --paper: #f4efe4;
+    --card: #fffdf8;
+    --line: #ddd5c4;
+    --board: #131c2e;
+    --board-line: #2b3a57;
+    --amber: #f5b335;
+    --red: #b3261e;
+    --red-soft: #fbe9e7;
+    --green: #1c7a50;
+    --green-soft: #e0f2e9;
+    --orange: #a85b00;
+    --orange-soft: #fcefd6;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.45 "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+
+  header { background: var(--board); color: #fff; padding: 28px 16px 92px; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header h1 { margin: 0; font-size: clamp(26px, 5vw, 38px); letter-spacing: -.01em; }
+  header p { margin: 4px 0 0; color: #aeb9cc; }
+
+  main.wrap { padding: 0 16px 48px; max-width: 1132px; }
+
+  /* Departure board */
+  .board {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-top: -68px;
+  }
+  .train {
+    text-align: left; padding: 16px; border-radius: 10px;
+    background: #1b2740; color: #fff; border: 2px solid var(--board-line);
+    transition: transform .12s, border-color .12s;
+  }
+  .train:hover { transform: translateY(-2px); }
+  .train[aria-pressed="true"] { border-color: var(--amber); }
+  .train .num { font: 600 13px var(--mono); color: var(--amber); letter-spacing: .08em; }
+  .train h2 { margin: 2px 0 10px; font-size: 19px; }
+  .route { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; color: #c6cfdd; }
+  .route b { display: block; font: 600 19px var(--mono); color: #fff; }
+  .route span:last-child { text-align: right; }
+  .avail {
+    display: inline-block; margin-top: 12px; padding: 2px 9px; border-radius: 99px;
+    font-size: 13px; font-weight: 600;
+  }
+  .avail.ok { background: var(--green-soft); color: var(--green); }
+  .avail.wait { background: var(--orange-soft); color: var(--orange); }
+  .avail.full { background: var(--red-soft); color: var(--red); }
+
+  /* Layout */
+  .columns { display: grid; grid-template-columns: 340px 1fr; gap: 20px; margin-top: 20px; align-items: start; }
+  .stack { display: grid; gap: 20px; min-width: 0; }
+  section {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px;
+    min-width: 0;
+  }
+  section h3 { margin: 0 0 14px; font-size: 17px; }
+  .sub { font-weight: 400; color: var(--ink-soft); font-size: 14px; }
+
+  /* Forms */
+  label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  input, select {
+    display: block; width: 100%; margin-top: 4px; padding: 9px 11px;
+    background: #fff; border: 1px solid #c7bfae; border-radius: 6px; font-weight: 400;
+  }
+  .pair { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
+  .primary {
+    width: 100%; padding: 11px; border: 0; border-radius: 6px;
+    background: var(--ink); color: #fff; font-weight: 600;
+  }
+  .primary:hover { background: #26395f; }
+  .primary:disabled { background: #a9afba; cursor: not-allowed; }
+  .inline { display: flex; gap: 8px; }
+  .inline input { margin: 0; min-width: 0; font-family: var(--mono); }
+  .inline .primary { width: auto; padding: 9px 16px; }
+  .message { margin: 10px 0 0; font-size: 14px; color: var(--red); }
+  .message:empty { display: none; }
+
+  /* Ticket */
+  .ticket {
+    display: grid; grid-template-columns: 1fr auto; background: var(--orange-soft);
+    border-radius: 10px; overflow: hidden; animation: rise .2s ease-out;
+  }
+  .ticket.confirmed { background: var(--green-soft); }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+  .ticket-body { padding: 14px 16px; min-width: 0; }
+  .ticket-body strong { display: block; font-size: 17px; overflow-wrap: anywhere; }
+  .ticket-body small { display: block; color: var(--ink-soft); }
+  .ticket-stub {
+    padding: 14px 16px; border-left: 2px dashed rgba(23, 35, 59, .3);
+    text-align: center; font-family: var(--mono);
+  }
+  .ticket-stub small { display: block; font-size: 11px; letter-spacing: .08em; }
+  .ticket-stub b { font-size: 20px; }
+  .ticket-status { display: block; font-size: 13px; font-weight: 700; margin-top: 6px; }
+  .ticket.confirmed .ticket-status { color: var(--green); }
+  .ticket:not(.confirmed) .ticket-status { color: var(--orange); }
+  .ticket-actions { grid-column: 1 / -1; padding: 0 16px 12px; }
+
+  /* Seat map */
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--ink-soft); margin-bottom: 14px; }
+  .legend i {
+    display: inline-block; width: 13px; height: 13px; border-radius: 3px;
+    margin-right: 5px; vertical-align: -1px; border: 2px solid var(--green);
+  }
+  .legend .taken i { background: var(--ink); border-color: var(--ink); }
+  .coach {
+    display: grid; grid-template-columns: repeat(2, 1fr) 40px repeat(2, 1fr); gap: 8px;
+    border: 2px solid var(--line); border-radius: 22px; padding: 18px; max-width: 460px;
+  }
+  .seat {
+    height: 46px; display: grid; place-items: center; border-radius: 7px 7px 4px 4px;
+    font: 600 14px var(--mono); border: 2px solid var(--green); color: var(--green);
+  }
+  .seat.taken { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+  /* Waiting list */
+  .queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .queue li {
+    display: flex; align-items: center; gap: 12px; padding: 8px 10px;
+    background: var(--orange-soft); border-radius: 7px;
+  }
+  .queue .position { font: 700 14px var(--mono); color: var(--orange); white-space: nowrap; }
+  .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .grow small { display: block; color: var(--ink-soft); font-family: var(--mono); }
+  .empty { margin: 0; color: var(--ink-soft); font-size: 14px; }
+
+  /* Passenger table */
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); }
+  th, td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: 0; }
+  td.mono { font-family: var(--mono); white-space: nowrap; }
+  td:last-child { text-align: right; padding-right: 0; }
+
+  .cancel {
+    padding: 4px 11px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    background: transparent; color: var(--red); border: 1px solid var(--red); white-space: nowrap;
+  }
+  .cancel:hover, .cancel.armed { background: var(--red); color: #fff; }
+
+  /* Toast */
+  #toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    width: min(440px, calc(100vw - 32px)); padding: 12px 16px; border-radius: 8px;
+    background: var(--ink); color: #fff; font-size: 15px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25); opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  #toast.show { opacity: 1; }
+
+  @media (max-width: 860px) {
+    .board, .columns { grid-template-columns: 1fr; }
+    .coach { padding: 12px; gap: 6px; grid-template-columns: repeat(2, 1fr) 20px repeat(2, 1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Railway Reservation</h1>
+    <p>Book seats, join the waiting list, check a PNR and cancel tickets.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="board" id="board"></div>
+
+  <div class="columns">
+    <div class="stack">
+      <section>
+        <h3>Book a ticket <span class="sub" id="book-train"></span></h3>
+        <form id="book-form">
+          <label>Passenger name
+            <input name="name" required maxlength="40" autocomplete="off" placeholder="Full name">
+          </label>
+          <div class="pair">
+            <label>Age
+              <input name="age" type="number" min="1" max="120" required>
+            </label>
+            <label>Gender
+              <select name="gender">
+                <option value="F">Female</option>
+                <option value="M">Male</option>
+                <option value="O">Other</option>
+              </select>
+            </label>
+          </div>
+          <button class="primary" id="book-button"></button>
+          <p class="message" id="book-error"></p>
+        </form>
+      </section>
+
+      <section>
+        <h3>Check PNR status</h3>
+        <form id="pnr-form" class="inline">
+          <input name="pnr" inputmode="numeric" pattern="[0-9]+" required
+                 placeholder="e.g. 1000001" aria-label="PNR number">
+          <button class="primary">Check</button>
+        </form>
+        <p class="message" id="pnr-error"></p>
+      </section>
+
+      <div id="ticket"></div>
+    </div>
+
+    <div class="stack">
+      <section>
+        <h3>Seat map <span class="sub" id="seat-count"></span></h3>
+        <div class="legend">
+          <span><i></i>Available</span>
+          <span class="taken"><i></i>Reserved</span>
+        </div>
+        <div class="coach" id="coach"></div>
+      </section>
+
+      <section>
+        <h3>Waiting list <span class="sub" id="wait-count"></span></h3>
+        <div id="waitlist"></div>
+      </section>
+
+      <section>
+        <h3>Confirmed passengers</h3>
+        <div class="scroll" id="passengers"></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div id="toast" role="status"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  let state = null;
+  let selectedTrain = 1;
+  let ticketPnr = null;   // PNR of the ticket on show; redrawn from live state
+  let toastTimer;
+
+  // Builds DOM nodes. Text always goes through text nodes, so data can never become markup.
+  function el(tag, attrs = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (key === 'onclick') node.onclick = value;
+      else node.setAttribute(key, value);
+    }
+    node.append(...children);
+    return node;
+  }
+
+  const genders = { F: 'Female', M: 'Male', O: 'Other' };
+  const describe = p => `${p.age}, ${genders[p.gender]}`;
+
+  function toast(text) {
+    $('toast').textContent = text;
+    $('toast').classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $('toast').classList.remove('show'), 5000);
+  }
+
+  async function api(path, form) {
+    const options = form
+      ? { method: 'POST', body: new URLSearchParams(form) }
+      : undefined;
+    let response;
+    try {
+      response = await fetch(path, options);
+    } catch {
+      throw new Error('Cannot reach the server. Is it running?');
+    }
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+    return data;
+  }
+
+  async function refresh() {
+    state = await api('/api/state');
+    render();
+  }
+
+  function availability(t) {
+    if (t.free > 0) return ['ok', `${t.free} seat${t.free === 1 ? '' : 's'} available`];
+    const left = state.waitlistLimit - t.waitlist.length;
+    if (left > 0) return ['wait', `Full · ${left} waiting place${left === 1 ? '' : 's'} left`];
+    return ['full', 'Fully booked'];
+  }
+
+  function renderBoard() {
+    $('board').replaceChildren(...state.trains.map(t => {
+      const [kind, text] = availability(t);
+      return el('button', {
+        class: 'train', 'aria-pressed': t.id === selectedTrain,
+        onclick() { selectedTrain = t.id; render(); }
+      },
+        el('div', { class: 'num' }, t.number),
+        el('h2', {}, t.name),
+        el('div', { class: 'route' },
+          el('span', {}, el('b', {}, t.departs), t.from),
+          el('span', {}, el('b', {}, t.arrives), t.to)),
+        el('span', { class: `avail ${kind}` }, text));
+    }));
+  }
+
+  function renderBooking(t) {
+    const [kind] = availability(t);
+    $('book-train').textContent = `· ${t.name}`;
+    $('book-button').disabled = kind === 'full';
+    $('book-button').textContent =
+      kind === 'ok' ? 'Reserve seat' : kind === 'wait' ? 'Join waiting list' : 'Fully booked';
+  }
+
+  function renderCoach(t) {
+    const bySeat = new Map(t.passengers.map(p => [p.seat, p]));
+    const cells = [];
+    for (let seat = 1; seat <= state.seatsPerTrain; seat++) {
+      const p = bySeat.get(seat);
+      cells.push(el('div', {
+        class: p ? 'seat taken' : 'seat',
+        title: p ? `${p.name} (PNR ${p.pnr})` : 'Available'
+      }, seat));
+      if (seat % 4 === 2) cells.push(el('div'));   // aisle
+    }
+    $('coach').replaceChildren(...cells);
+    $('seat-count').textContent = `· ${t.passengers.length} of ${state.seatsPerTrain} reserved`;
+  }
+
+  // First click arms the button, the second confirms. It disarms itself after 3 seconds.
+  function cancelButton(pnr) {
+    const button = el('button', {
+      class: 'cancel', 'aria-label': `Cancel booking ${pnr}`,
+      onclick() {
+        if (!button.classList.contains('armed')) {
+          button.classList.add('armed');
+          button.textContent = 'Confirm?';
+          setTimeout(() => {
+            button.classList.remove('armed');
+            button.textContent = 'Cancel';
+          }, 3000);
+          return;
+        }
+        cancelBooking(pnr);
+      }
+    }, 'Cancel');
+    return button;
+  }
+
+  function renderWaitlist(t) {
+    $('wait-count').textContent = `· ${t.waitlist.length} of ${state.waitlistLimit} places taken`;
+    if (!t.waitlist.length) {
+      $('waitlist').replaceChildren(el('p', { class: 'empty' }, 'Nobody is waiting.'));
+      return;
+    }
+    $('waitlist').replaceChildren(el('ol', { class: 'queue' }, ...t.waitlist.map(p =>
+      el('li', {},
+        el('span', { class: 'position' }, `WL ${p.position}`),
+        el('div', { class: 'grow' }, p.name, el('small', {}, `PNR ${p.pnr}`)),
+        cancelButton(p.pnr)))));
+  }
+
+  function renderPassengers(t) {
+    if (!t.passengers.length) {
+      $('passengers').replaceChildren(el('p', { class: 'empty' }, 'No confirmed passengers yet.'));
+      return;
+    }
+    const heading = el('tr', {}, ...['Seat', 'PNR', 'Name', 'Details', ''].map(h => el('th', {}, h)));
+    const rows = t.passengers.map(p => el('tr', {},
+      el('td', { class: 'mono' }, `S${p.seat}`),
+      el('td', { class: 'mono' }, p.pnr),
+      el('td', {}, p.name),
+      el('td', {}, describe(p)),
+      el('td', {}, cancelButton(p.pnr))));
+    $('passengers').replaceChildren(el('table', {},
+      el('thead', {}, heading), el('tbody', {}, ...rows)));
+  }
+
+  function findPassenger(pnr) {
+    for (const t of state.trains)
+      for (const p of [...t.passengers, ...t.waitlist])
+        if (p.pnr === pnr) return { p, t };
+    return null;
+  }
+
+  function renderTicket() {
+    const found = ticketPnr && findPassenger(ticketPnr);
+    if (!found) {
+      $('ticket').replaceChildren();
+      return;
+    }
+    const { p, t } = found;
+    const confirmed = p.status === 'CONFIRMED';
+    $('ticket').replaceChildren(el('div', { class: confirmed ? 'ticket confirmed' : 'ticket' },
+      el('div', { class: 'ticket-body' },
+        el('strong', {}, p.name),
+        el('small', {}, describe(p)),
+        el('small', {}, `${t.number} ${t.name}`),
+        el('small', {}, `${t.from} ${t.departs} to ${t.to} ${t.arrives}`)),
+      el('div', { class: 'ticket-stub' },
+        el('small', {}, 'PNR'),
+        el('b', {}, p.pnr),
+        el('span', { class: 'ticket-status' },
+          confirmed ? `CONFIRMED · S${p.seat}` : `WAITING · WL ${p.position}`)),
+      el('div', { class: 'ticket-actions' }, cancelButton(p.pnr))));
+  }
+
+  function render() {
+    const train = state.trains.find(t => t.id === selectedTrain);
+    renderBoard();
+    renderBooking(train);
+    renderCoach(train);
+    renderWaitlist(train);
+    renderPassengers(train);
+    renderTicket();
+  }
+
+  async function cancelBooking(pnr) {
+    try {
+      const result = await api('/api/cancel', { pnr });
+      toast(result.promoted
+        ? `Booking ${pnr} cancelled. ${result.promoted.name} moved from the waiting list to seat S${result.promoted.seat}.`
+        : `Booking ${pnr} cancelled.`);
+    } catch (error) {
+      toast(error.message);
+    }
+    await refresh().catch(error => toast(error.message));
+  }
+
+  $('book-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.target;
+    const data = Object.fromEntries(new FormData(form));
+    data.name = data.name.trim();
+    data.train = selectedTrain;
+    $('book-error').textContent = '';
+    try {
+      const passenger = await api('/api/book', data);
+      ticketPnr = passenger.pnr;
+      form.reset();
+      await refresh();
+    } catch (error) {
+      $('book-error').textContent = error.message;
+    }
+  });
+
+  $('pnr-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const pnr = event.target.elements.pnr.value;
+    $('pnr-error').textContent = '';
+    try {
+      const passenger = await api(`/api/pnr?pnr=${encodeURIComponent(pnr)}`);
+      ticketPnr = passenger.pnr;
+      selectedTrain = passenger.train;
+      event.target.reset();
+      await refresh();
+    } catch (error) {
+      ticketPnr = null;
+      $('pnr-error').textContent = error.message;
+      renderTicket();
+    }
+  });
+
+  refresh().catch(error => toast(error.message));
+</script>
+</body>
+</html>
